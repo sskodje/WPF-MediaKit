@@ -219,14 +219,14 @@ namespace WPFMediaKit.DirectShow.MediaPlayers
         /// <summary>
         /// Plays the video capture device
         /// </summary>
-        public override void Play()
+        public override bool Play()
         {
             VerifyAccess();
 
             if (m_graph == null)
                 SetupGraph();
 
-            base.Play();
+            return base.Play();
         }
 
         /// <summary>

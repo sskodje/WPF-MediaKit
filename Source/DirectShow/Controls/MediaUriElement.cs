@@ -98,7 +98,7 @@ namespace WPFMediaKit.DirectShow.Controls
         }
 
         #endregion
-        
+
         #region Source
 
         public static readonly DependencyProperty SourceProperty =
@@ -123,7 +123,7 @@ namespace WPFMediaKit.DirectShow.Controls
 
         protected void OnSourceChanged(DependencyPropertyChangedEventArgs e)
         {
-            if(HasInitialized)
+            if (HasInitialized)
                 PlayerSetSource();
         }
 
@@ -131,23 +131,30 @@ namespace WPFMediaKit.DirectShow.Controls
         {
             var source = Source;
             var rendererType = VideoRenderer;
+            Stop();
 
-            MediaPlayerBase.Dispatcher.BeginInvoke((Action) delegate
-            {
-                /* Set the renderer type */
-                MediaUriPlayer.VideoRenderer = rendererType;
+            MediaPlayerBase.Dispatcher.BeginInvoke((Action)delegate
+           {
+               /* Set the renderer type */
+               MediaUriPlayer.VideoRenderer = rendererType;
+               bool invokePositionChanged = MediaUriPlayer.Source != null;
+                   /* Set the source type */
+                   MediaUriPlayer.Source = source;
 
-                /* Set the source type */
-                MediaUriPlayer.Source = source;
+                   Dispatcher.BeginInvoke((Action)delegate
+                   {
 
-                Dispatcher.BeginInvoke((Action) delegate
-                {
-                    if (IsLoaded)
-                        ExecuteMediaState(LoadedBehavior);
-                    //else
-                    //    ExecuteMediaState(UnloadedBehavior);
-                });
-            });
+                       if (invokePositionChanged)
+                       {
+                           SetMediaPositionInternal(0);
+                           InvokeMediaPlayerPositionChanged(new MediaPositionChangedEventArgs(MediaPosition, false));
+                       }
+                       if (IsLoaded)
+                           ExecuteMediaState(LoadedBehavior);
+                       //else
+                       //    ExecuteMediaState(UnloadedBehavior);
+                   });
+           });
         }
         #endregion
 

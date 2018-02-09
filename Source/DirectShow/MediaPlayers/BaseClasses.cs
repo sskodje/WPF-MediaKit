@@ -540,7 +540,6 @@ namespace WPFMediaKit.DirectShow.MediaPlayers
             {
                 case EventCode.Complete:
                     InvokeMediaEnded(null);
-                    StopGraphPollTimer();
                     break;
                 case EventCode.Paused:
                     break;
@@ -608,6 +607,7 @@ namespace WPFMediaKit.DirectShow.MediaPlayers
             if (m_timer != null)
             {
                 m_timer.Stop();
+                m_timer.Elapsed -= TimerElapsed;
                 m_timer.Dispose();
                 m_timer = null;
             }
@@ -724,6 +724,12 @@ namespace WPFMediaKit.DirectShow.MediaPlayers
         /// Notifies when the media has completed
         /// </summary>
         public event Action MediaEnded;
+
+        /// <summary>
+        /// Notifies when the position of the media has changed
+        /// </summary>
+        internal event EventHandler<MediaStateChangedInternalEventArgs> MediaPlaybackStateChanged;
+
 
         /// <summary>
         /// Registers the custom allocator and hooks into it's supplied events
@@ -859,7 +865,7 @@ namespace WPFMediaKit.DirectShow.MediaPlayers
             {
                 var evr = new EnhancedVideoRenderer();
                 filter = evr as IBaseFilter;
-                
+
                 int hr = graph.AddFilter(filter, string.Format("Renderer: {0}", VideoRendererType.EnhancedVideoRenderer));
                 DsError.ThrowExceptionForHR(hr);
 
@@ -976,7 +982,7 @@ namespace WPFMediaKit.DirectShow.MediaPlayers
         /// <summary>
         /// Plays the media
         /// </summary>
-        public virtual void Play()
+        public virtual bool Play()
         {
             VerifyAccess();
 
@@ -987,7 +993,14 @@ namespace WPFMediaKit.DirectShow.MediaPlayers
             }
 
             if (m_mediaControl != null)
-                m_mediaControl.Run();
+            {
+                int i = m_mediaControl.Run();
+
+                StartGraphPollTimer();
+                InvokeMediaPlaybackStateChanged(new MediaStateChangedInternalEventArgs(MediaState.Play));
+                return true;
+            }
+            return false;
         }
 
         /// <summary>
@@ -1016,6 +1029,9 @@ namespace WPFMediaKit.DirectShow.MediaPlayers
 
                 while (filterState != FilterState.Stopped)
                     m_mediaControl.GetState(0, out filterState);
+
+                StopGraphPollTimer();
+                InvokeMediaPlaybackStateChanged(new MediaStateChangedInternalEventArgs(MediaState.Stop));
             }
         }
 
@@ -1027,6 +1043,7 @@ namespace WPFMediaKit.DirectShow.MediaPlayers
             VerifyAccess();
             StopInternal();
             FreeResources();
+            InvokeMediaPlaybackStateChanged(new MediaStateChangedInternalEventArgs(MediaState.Close));
         }
 
         /// <summary>
@@ -1039,11 +1056,20 @@ namespace WPFMediaKit.DirectShow.MediaPlayers
             if (m_mediaControl != null)
             {
                 m_mediaControl.Pause();
+                InvokeMediaPlaybackStateChanged(new MediaStateChangedInternalEventArgs(MediaState.Pause));
             }
         }
 
         #region Event Invokes
-
+        /// <summary>
+        /// Invokes the MediaPlaybackStateChanged event, notifying any subscriber that
+        /// media state has changed
+        /// </summary>
+        private void InvokeMediaPlaybackStateChanged(MediaStateChangedInternalEventArgs e)
+        {
+            EventHandler<MediaStateChangedInternalEventArgs> mediaPlaybackStateChangedHandler = MediaPlaybackStateChanged;
+            if (mediaPlaybackStateChangedHandler != null) mediaPlaybackStateChangedHandler(this, e);
+        }
         /// <summary>
         /// Invokes the MediaEnded event, notifying any subscriber that
         /// media has reached the end
@@ -1171,7 +1197,7 @@ namespace WPFMediaKit.DirectShow.MediaPlayers
             Rectangle rect = videoInfo.SrcRect.ToRectangle();
             size = new Size(rect.Width, rect.Height);
 
-        done:
+            done:
             DsUtils.FreeAMMediaType(mediaType);
 
             if (pin != null)
@@ -1338,7 +1364,7 @@ namespace WPFMediaKit.DirectShow.MediaPlayers
                 }
             }
 
-        done:
+            done:
             if (mediaTypesEnum != null)
             {
                 mediaTypesEnum.Reset();

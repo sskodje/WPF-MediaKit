@@ -993,7 +993,7 @@ namespace WPFMediaKit.DirectShow.MediaPlayers
         /// <summary>
         /// Plays the Dvd
         /// </summary>
-        public override void Play()
+        public override bool Play()
         {
             if (m_dvdControl == null || m_dvdDirectoryDirty)
             {
@@ -1002,7 +1002,7 @@ namespace WPFMediaKit.DirectShow.MediaPlayers
                 BuildGraph();
             }
 
-            base.Play();
+           return  base.Play();
         }
 
         /// <summary>

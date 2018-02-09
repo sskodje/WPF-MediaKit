@@ -1,9 +1,31 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.Windows;
 using WPFMediaKit.DirectShow.MediaPlayers;
 
 namespace WPFMediaKit.DirectShow.Controls
 {
+    /// <summary>
+    /// The arguments that store information about a media position change
+    /// </summary>
+    public class MediaPositionChangedEventArgs : EventArgs
+    {
+        public MediaPositionChangedEventArgs(long pos, bool wasExternal)
+        {
+            MediaPosition = pos;
+            SourceWasExternal = wasExternal;
+        }
+        /// <summary>
+        /// True if the media position was altered externally, e.g. by the user seeking.
+        /// </summary>
+        public bool SourceWasExternal { get; protected set; }
+        /// <summary>
+        /// The media position in 100 nanosecond units
+        /// </summary>
+        public long MediaPosition { get; protected set; }
+    }
+
+
     /// <summary>
     /// The MediaSeekingElement adds media seeking functionality to
     /// the MediaElementBase class.
@@ -16,13 +38,18 @@ namespace WPFMediaKit.DirectShow.Controls
         /// from the media player thread
         /// </summary>
         private bool m_ignorePropertyChangedCallback;
-
+        private bool m_durationChangeWasExternal;
         #region MediaPosition
+
+        /// <summary>
+        /// Notifies when the media position changes
+        /// </summary>
+        public event EventHandler<MediaPositionChangedEventArgs> MediaPositionChanged;
 
         public static readonly DependencyProperty MediaPositionProperty =
             DependencyProperty.Register("MediaPosition", typeof(long), typeof(MediaSeekingElement),
                                         new FrameworkPropertyMetadata((long)0,
-                                                                      new PropertyChangedCallback(OnMediaPositionChanged)));
+                                                                      new PropertyChangedCallback(OnMediaPositionChangedCallback)));
 
         /// <summary>
         /// Gets or sets the media position in units of CurrentPositionFormat
@@ -33,7 +60,7 @@ namespace WPFMediaKit.DirectShow.Controls
             set { SetValue(MediaPositionProperty, value); }
         }
 
-        private static void OnMediaPositionChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
+        private static void OnMediaPositionChangedCallback(DependencyObject d, DependencyPropertyChangedEventArgs e)
         {
             ((MediaSeekingElement)d).OnMediaPositionChanged(e);
         }
@@ -42,12 +69,12 @@ namespace WPFMediaKit.DirectShow.Controls
         {
             /* If the change came from within our class,
              * ignore this callback */
-            if ((m_ignorePropertyChangedCallback))
+            if (m_ignorePropertyChangedCallback)
             {
                 m_ignorePropertyChangedCallback = false;
                 return;
             }
-
+            m_durationChangeWasExternal = true;
             PlayerSetMediaPosition();
         }
 
@@ -58,11 +85,14 @@ namespace WPFMediaKit.DirectShow.Controls
         /// <param name="value">The value to set the MediaPosition to</param>
         protected void SetMediaPositionInternal(long value)
         {
-            /* Flag that we want to ignore the next
-             * PropertyChangedCallback */
-            m_ignorePropertyChangedCallback = true;
+            if (MediaPosition != value)
+            {
+                /* Flag that we want to ignore the next
+                 * PropertyChangedCallback */
+                m_ignorePropertyChangedCallback = true;
 
-            MediaPosition = value;
+                MediaPosition = value;
+            }
         }
 
         private void PlayerSetMediaPosition()
@@ -70,9 +100,18 @@ namespace WPFMediaKit.DirectShow.Controls
             var position = MediaPosition;
             if (MediaPlayerBase.Dispatcher.ShuttingOrShutDown)
                 return;
+            //Due to the async nature of the mediaplayer dispatcher, the MediaPlayer won't know that the user have changed 
+            //the MediaPosition value in response to e.g the MediaEnded event until after the MediaComplete event have run.
+            //Calling SetMediaPositionInternal() fixes this by setting the value before invoking the change to the underlying MediaPlayer async.
+            //It feels quite hackish, so should probably find a better solution.
+            MediaSeekingPlayer.SetMediaPositionInternal(position);
 
             MediaPlayerBase.Dispatcher.BeginInvoke((Action)
-                                                  (() => MediaSeekingPlayer.MediaPosition = position));
+                                                  (() =>
+                                                  {
+                                                      MediaSeekingPlayer.MediaPosition = position;
+                                                  }));
+            System.Diagnostics.Debug.WriteLine("Set media position to: " + position);
         }
 
         #endregion
@@ -226,7 +265,7 @@ namespace WPFMediaKit.DirectShow.Controls
             PlayerSetSpeedRatio();
             base.EndInit();
         }
-        
+
         /// <summary>
         /// Internal reference to the MediaSeekingPlayer
         /// </summary>
@@ -275,6 +314,15 @@ namespace WPFMediaKit.DirectShow.Controls
         {
             OnMediaPlayerPositionChanged();
         }
+        /// <summary>
+        /// Fires the MediaStateChanged event
+        /// </summary>
+        /// <param name="e">The failed media arguments</param>
+        protected void InvokeMediaPlayerPositionChanged(MediaPositionChangedEventArgs e)
+        {
+            EventHandler<MediaPositionChangedEventArgs> mediaPositionChangedEventHandler = MediaPositionChanged;
+            if (mediaPositionChangedEventHandler != null) mediaPositionChangedEventHandler(this, e);
+        }
 
         /// <summary>
         /// Runs when the media player's position has changed
@@ -283,13 +331,14 @@ namespace WPFMediaKit.DirectShow.Controls
         {
             long position = MediaSeekingPlayer.MediaPosition;
             long duration = MediaSeekingPlayer.Duration;
-
             Dispatcher.BeginInvoke((Action)delegate
             {
-                if(MediaDuration != duration)
+                if (MediaDuration != duration)
                     SetMediaDuration(duration);
 
                 SetMediaPositionInternal(position);
+                InvokeMediaPlayerPositionChanged(new MediaPositionChangedEventArgs(MediaPosition, m_durationChangeWasExternal));
+                m_durationChangeWasExternal = false;
             });
         }
 
@@ -316,12 +365,12 @@ namespace WPFMediaKit.DirectShow.Controls
                 //SpeedRatio = rate;
                 rate = SpeedRatio;
                 volume = Volume;
-                MediaSeekingPlayer.Dispatcher.BeginInvoke((Action) delegate
-                {
-                    //MediaSeekingPlayer.MediaPosition = position;
-                    MediaSeekingPlayer.SpeedRatio = rate;
-                    MediaPlayerBase.Volume = volume;
-                });
+                MediaSeekingPlayer.Dispatcher.BeginInvoke((Action)delegate
+              {
+                  MediaSeekingPlayer.MediaPosition = position;
+                  MediaSeekingPlayer.SpeedRatio = rate;
+                  MediaPlayerBase.Volume = volume;
+              });
             });
 
             base.OnMediaPlayerOpened();

@@ -4,6 +4,24 @@ using DirectShowLib;
 
 namespace WPFMediaKit.DirectShow.MediaPlayers
 {
+    //internal enum PlaybackStateInternal
+    //{
+    //    Playing,
+    //    Paused,
+    //    Stopped
+    //}
+    /// <summary>
+    /// The arguments that store information about a media position change
+    /// </summary>
+    internal class MediaStateChangedInternalEventArgs : EventArgs
+    {
+        public MediaStateChangedInternalEventArgs(MediaState state)
+        {
+            MediaState = state;
+        }
+
+        public MediaState MediaState { get; protected set; }
+    }
     /// <summary>
     /// The MediaSeekingPlayer adds media seeking functionality to
     /// to the MediaPlayerBase class
@@ -63,18 +81,35 @@ namespace WPFMediaKit.DirectShow.MediaPlayers
             }
             set
             {
-                VerifyAccess();
-                m_currentPosition = value;
-
-                if (m_mediaSeeking != null)
-                {
-                    /* Try to set the media time */
-                    m_mediaSeeking.SetPositions(m_currentPosition,
-                                                AMSeekingSeekingFlags.AbsolutePositioning,
-                                                0,
-                                                AMSeekingSeekingFlags.NoPositioning);
-                }
+                SetMediaPosionOnMediaSeekingElement(value);
             }
+        }
+
+        private void SetMediaPosionOnMediaSeekingElement(long value)
+        {
+            VerifyAccess();
+            m_currentPosition = value;
+
+            if (m_mediaSeeking != null)
+            {
+                /* Try to set the media time */
+                m_mediaSeeking.SetPositions(m_currentPosition,
+                                            AMSeekingSeekingFlags.AbsolutePositioning,
+                                            0,
+                                            AMSeekingSeekingFlags.NoPositioning);
+            }
+        }
+
+        /// <summary>
+        /// Sets the MediaPosition value without notifying the underlying media player.
+        /// </summary>
+        internal void SetMediaPositionInternal(long position)
+        {
+            m_currentPosition = position;
+            Dispatcher.BeginInvoke((Action)(() =>
+            {
+                InvokeMediaPositionChanged(null);
+            }));
         }
 
         /// <summary>
@@ -139,9 +174,31 @@ namespace WPFMediaKit.DirectShow.MediaPlayers
 
             if (m_mediaSeeking != null)
                 Marshal.ReleaseComObject(m_mediaSeeking);
-            
+
             m_mediaSeeking = null;
             m_currentPosition = 0;
+        }
+
+        /// <summary>
+        /// Is ran everytime a new media event occurs on the graph
+        /// </summary>
+        /// <param name="code">The Event code that occured</param>
+        /// <param name="lparam1">The first event parameter sent by the graph</param>
+        /// <param name="lparam2">The second event parameter sent by the graph</param>
+        protected override void OnMediaEvent(EventCode code, IntPtr lparam1, IntPtr lparam2)
+        {
+            base.OnMediaEvent(code, lparam1, lparam2);
+            switch (code)
+            {
+                case EventCode.Complete:
+                    {
+                        if (MediaPosition == Duration)
+                        {
+                            Pause();
+                        }
+                        break;
+                    }
+            }
         }
 
         /// <summary>
@@ -268,7 +325,27 @@ namespace WPFMediaKit.DirectShow.MediaPlayers
             /* Set our property up with the right format */
             CurrentPositionFormat = ConvertPositionFormat(currentFormat);
 
+            if (MediaPosition > 0)
+            {
+                SetMediaPosionOnMediaSeekingElement(MediaPosition);
+            }
+
             SetDuration();
+        }
+        public override bool Play()
+        {
+            if (MediaPosition == Duration)
+            {
+                MediaPosition = 0;
+            }
+          return  base.Play();
+        }
+
+        public override void Stop()
+        {
+            base.Stop();
+            MediaPosition = 0;
+            InvokeMediaPositionChanged(null);
         }
     }
 }

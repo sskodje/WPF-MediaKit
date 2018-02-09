@@ -7,14 +7,19 @@
         xmlns:controls="clr-namespace:WPFMediaKit.DirectShow.Controls;assembly=WPFMediaKit"
         xmlns:players="clr-namespace:WPFMediaKit.DirectShow.MediaPlayers;assembly=WPFMediaKit"
         mc:Ignorable="d"
-        Title="MainWindow" Height="350" Width="525">
+        Title="MainWindow"
+        Height="350"
+        Width="525">
     <Window.Resources>
         <local:EnumToBooleanConverter x:Key="EnumToBooleanConverter" />
+        <local:BoolToInvertedBoolConverter x:Key="BoolToInvertedBoolConverter" />
+        <local:BoolToVolumeButtonImageSourceConverter x:Key="BoolToVolumeButtonImageSourceConverter" />
     </Window.Resources>
-    <Grid>
+    <Grid x:Name="LayoutRoot">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
             <RowDefinition />
+            <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
         </Grid.RowDefinitions>
@@ -24,27 +29,210 @@
                 <ColumnDefinition Width="*" />
                 <ColumnDefinition Width="Auto" />
             </Grid.ColumnDefinitions>
-            <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
-                <Button x:Name="btnOpen" Click="btnOpen_Click" Content="Open..."  Padding="4" Margin="4" />
+            <StackPanel Grid.Column="0"
+                        Orientation="Horizontal"
+                        VerticalAlignment="Center">
+                <Button x:Name="btnOpen"
+                        Click="btnOpen_Click"
+                        Content="Open..."
+                        Padding="4"
+                        Margin="4" />
+                <Button x:Name="btnOpenUri"
+                        Click="btnOpenUri_Click"
+                        Content="Open Uri..."
+                        Padding="4"
+                        Margin="4" />
             </StackPanel>
-            <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
-                <TextBlock Text="Video Renderer:" VerticalAlignment="Center" Margin="4" />
-                <RadioButton Content="VMR9" IsChecked="{Binding VideoRenderer, ElementName=mediaUriElement, Converter={StaticResource EnumToBooleanConverter}, ConverterParameter={x:Static players:VideoRendererType.VideoMixingRenderer9}}"
+            <StackPanel Grid.Column="2"
+                        Orientation="Horizontal"
+                        VerticalAlignment="Center">
+                <TextBlock Text="Video Renderer:"
+                           VerticalAlignment="Center"
+                           Margin="4" />
+                <RadioButton Content="VMR9"
+                             IsChecked="{Binding VideoRenderer, ElementName=mediaUriElement, Converter={StaticResource EnumToBooleanConverter}, ConverterParameter={x:Static players:VideoRendererType.VideoMixingRenderer9}}"
                              VerticalAlignment="Center" />
-                <RadioButton Content="EVR" IsChecked="{Binding VideoRenderer, ElementName=mediaUriElement, Converter={StaticResource EnumToBooleanConverter}, ConverterParameter={x:Static players:VideoRendererType.EnhancedVideoRenderer}}"
-                             VerticalAlignment="Center" Margin="4,0" />
-                <TextBlock Text="Deeper Color:" VerticalAlignment="Center" Margin="4" />
-                <CheckBox x:Name="chkDeeperColor" VerticalAlignment="Center" Margin="0,0,4,0" />
+                <RadioButton Content="EVR"
+                             IsChecked="{Binding VideoRenderer, ElementName=mediaUriElement, Converter={StaticResource EnumToBooleanConverter}, ConverterParameter={x:Static players:VideoRendererType.EnhancedVideoRenderer}}"
+                             VerticalAlignment="Center"
+                             Margin="4,0" />
+                <TextBlock Text="Deeper Color:"
+                           VerticalAlignment="Center"
+                           Margin="4" />
+                <CheckBox x:Name="chkDeeperColor"
+                          VerticalAlignment="Center"
+                          Margin="0,0,4,0" />
             </StackPanel>
         </Grid>
-        <TextBlock x:Name="errorText" Grid.Row="1" TextWrapping="Wrap" Foreground="IndianRed" Margin="4" />
-        <controls:MediaUriElement x:Name="mediaUriElement" Grid.Row="1"
-                                  DeeperColor="{Binding IsChecked, ElementName=chkDeeperColor}"
-                                  Margin="4" />
-        <Slider x:Name="slider" Grid.Row="2" IsMoveToPointEnabled="True" Orientation="Horizontal" ValueChanged="slider_ValueChanged" Margin="4" />
-        <StackPanel Grid.Row="3" Orientation="Horizontal">
-            <Button x:Name="btnStop" Click="btnStop_Click" Content="Stop" MinWidth="50" Padding="4" Margin="4" />
-            <Button x:Name="btnPause" Click="btnPause_Click" Content="Pause" MinWidth="50" Padding="4" Margin="4" />
-        </StackPanel>
+        <TextBlock x:Name="errorText"
+                   Grid.Row="1"
+                   TextWrapping="Wrap"
+                   Foreground="IndianRed"
+                   Margin="4" />
+
+        <Grid x:Name="VideoContainerPanel"
+              Grid.Row="1"
+              Background="Black">
+            <controls:MediaUriElement x:Name="mediaUriElement"
+                                      Loop="False"
+                                      DeeperColor="{Binding IsChecked, ElementName=chkDeeperColor}"
+                                      Margin="0"
+                                      UnloadedBehavior="Pause"
+                                      LoadedBehavior="Play" />
+        </Grid>
+        <Slider x:Name="slider"
+                Grid.Row="2"
+                IsMoveToPointEnabled="True"
+                Orientation="Horizontal"
+                Margin="4"
+                Minimum="0"
+                Maximum="{Binding ElementName=mediaUriElement,Path=MediaDuration}"
+                Value="{Binding ElementName=mediaUriElement,Path=MediaPosition}" />
+
+        <Grid Grid.Row="3">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+
+
+            <StackPanel Orientation="Horizontal">
+                <ToggleButton x:Name="btnPlay"
+                              Height="25"
+                              Width="25"
+                              IsEnabled="{Binding ElementName=mediaUriElement,Path=IsMediaOpen}"
+                              IsChecked="{Binding MediaPlaybackState, ElementName=mediaUriElement, Converter={StaticResource EnumToBooleanConverter}, ConverterParameter={x:Static players:MediaState.Play},Mode=TwoWay}"
+                              BorderBrush="Transparent"
+                              Background="Transparent"
+                              Margin="5">
+                    <ToggleButton.Content>
+                        <Image Source="/Assets/play.png" />
+                    </ToggleButton.Content>
+
+                </ToggleButton>
+                <ToggleButton x:Name="btnPause"
+                              Height="25"
+                              Width="25"
+                              IsEnabled="{Binding ElementName=mediaUriElement,Path=IsMediaOpen}"
+                              IsChecked="{Binding MediaPlaybackState, ElementName=mediaUriElement, Converter={StaticResource EnumToBooleanConverter}, ConverterParameter={x:Static players:MediaState.Pause},Mode=TwoWay}"
+                              BorderBrush="Transparent"
+                              Background="Transparent"
+                              Margin="5">
+                    <ToggleButton.Content>
+                        <Image Source="/Assets/pause.png" />
+                    </ToggleButton.Content>
+                </ToggleButton>
+                <ToggleButton x:Name="btnStop"
+                              Height="25"
+                              Width="25"
+                              IsEnabled="{Binding ElementName=mediaUriElement,Path=IsMediaOpen}"
+                              IsChecked="{Binding MediaPlaybackState, ElementName=mediaUriElement, Converter={StaticResource EnumToBooleanConverter}, ConverterParameter={x:Static players:MediaState.Stop},Mode=TwoWay}"
+                              BorderBrush="Transparent"
+                              Background="Transparent"
+                              Margin="5">
+                    <ToggleButton.Content>
+                        <Image Source="/Assets/stop.png" />
+                    </ToggleButton.Content>
+                </ToggleButton>
+            </StackPanel>
+            <ToggleButton HorizontalAlignment="Right"
+                          x:Name="btnRepeat"
+                          IsEnabled="{Binding ElementName=mediaUriElement,Path=IsMediaOpen}"
+                          IsChecked="{Binding ElementName=mediaUriElement,Path=Loop,Mode=TwoWay}"
+                          Grid.Column="2"
+                          Background="Transparent"
+                          BorderBrush="Transparent"
+                          Margin="5"
+                          Width="25"
+                          Height="25">
+                <ToggleButton.Content>
+                    <Image Source="/Assets/repeat.png" />
+                </ToggleButton.Content>
+            </ToggleButton>
+            <Button HorizontalAlignment="Right"
+                    x:Name="btnFullscreen"
+                    IsEnabled="{Binding ElementName=mediaUriElement,Path=IsMediaOpen}"
+                    Click="btnFullscreen_Click"
+                    Grid.Column="3"
+                    Background="Transparent"
+                    BorderBrush="Transparent"
+                    Margin="5"
+                    Width="25"
+                    Height="25">
+                <Button.Content>
+                    <Image Source="/Assets/arrow_expand.png" />
+                </Button.Content>
+            </Button>
+            <StackPanel Orientation="Vertical"
+                        Grid.Column="4"
+                        Margin="5">
+                <Popup IsOpen="{Binding IsChecked, ElementName=VolumeButtonEmbedded}"
+                       x:Name="VolumePopup"
+                       AllowsTransparency="True"
+                       StaysOpen="False"
+                       Placement="Top"
+                       OpacityMask="{DynamicResource {x:Static SystemColors.ControlLightBrushKey}}">
+                    <Border BorderBrush="Transparent">
+                        <StackPanel Orientation="Vertical"
+                                    Background="Black"
+                                    Width="25">
+                            <Slider Orientation="Vertical"
+                                    Minimum="0"
+                                    Maximum="1"
+                                    Height="100"
+                                    SmallChange="0.10"
+                                    LargeChange="0.10"
+                                    Margin="3,3,0,0"
+                                    Value="{Binding Volume, ElementName=mediaUriElement}" />
+                            <ToggleButton Margin="0,3"
+                                          Background="Transparent"
+                                          BorderBrush="Transparent"
+                                          IsChecked="{Binding ElementName=mediaUriElement,Path=IsMuted}"
+                                          Width="25"
+                                          Height="25">
+                                <ToggleButton.Content>
+                                    <Image Source="/Assets/volume_off_white.png"
+                                           Margin="0" />
+                                </ToggleButton.Content>
+                            </ToggleButton>
+                        </StackPanel>
+                    </Border>
+                </Popup>
+                <ToggleButton x:Name="VolumeButtonEmbedded"
+                              IsHitTestVisible="{Binding ElementName=VolumePopup, Path=IsOpen, Mode=OneWay, Converter={StaticResource BoolToInvertedBoolConverter}}"
+                              Width="25"
+                              Height="25"
+                              Background="Transparent"
+                              BorderBrush="Transparent"
+                              IsEnabled="{Binding ElementName=mediaUriElement,Path=IsMediaOpen}"
+                              HorizontalAlignment="Center"
+                              VerticalAlignment="Center">
+                    <ToggleButton.Content>
+                        <Image Source="{Binding ElementName=mediaUriElement,Path=IsMuted,Converter={StaticResource BoolToVolumeButtonImageSourceConverter}}"
+                               Margin="1" />
+                    </ToggleButton.Content>
+                </ToggleButton>
+            </StackPanel>
+        </Grid>
+        <Grid Grid.Row="4"
+              Background="Black">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+            <TextBlock x:Name="tbStatus"
+                       Foreground="White"
+                       Margin="3"
+                       VerticalAlignment="Center" />
+
+            <TextBlock x:Name="tbProgress"
+                       Margin="3"
+                       Foreground="White"
+                       Grid.Column="2" />
+        </Grid>
     </Grid>
 </Window>

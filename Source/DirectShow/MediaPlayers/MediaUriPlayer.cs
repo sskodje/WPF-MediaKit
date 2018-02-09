@@ -3,6 +3,7 @@ using System;
 using System.Diagnostics;
 using System.Runtime.InteropServices;
 using DirectShowLib;
+using System.Runtime.ExceptionServices;
 #endregion
 
 namespace WPFMediaKit.DirectShow.MediaPlayers
@@ -419,6 +420,9 @@ namespace WPFMediaKit.DirectShow.MediaPlayers
 #endif
                 /* Configure the graph in the base class */
                 SetupFilterGraph(m_graph);
+
+                /* Sets the NaturalVideoWidth/Height */
+                SetNativePixelSizes(renderer);
             }
             catch (Exception ex)
             {
@@ -426,10 +430,8 @@ namespace WPFMediaKit.DirectShow.MediaPlayers
                  * not exist or could not open due to not having the
                  * proper filters installed */
 
-
                 // Fallback try auto graph:
                 var result = oldOpenSource();
-
                 if (!result)
                 {
                     FreeResources();
@@ -637,7 +639,7 @@ namespace WPFMediaKit.DirectShow.MediaPlayers
              * Dispatcher VeryifyAccess() issues because
              * this may be called from the GC */
             StopInternal();
-            
+
             if (m_graph != null)
             {
                 DirectShowUtil.RemoveFilters(m_graph);
