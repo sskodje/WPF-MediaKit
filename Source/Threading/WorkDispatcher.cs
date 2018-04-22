@@ -151,7 +151,7 @@ namespace WPFMediaKit.Threading
         {
             if (Shutdown)
                 return;
-            
+
             ShuttingDown = true;
 
             InvokeShutdownStarted();
@@ -217,16 +217,8 @@ namespace WPFMediaKit.Threading
             while (methods.Count > 0)
             {
                 var method = methods.Dequeue();
-
-                try
-                {
-                    if (method != null)
-                        method.DynamicInvoke(null);
-                }
-                catch
-                {
-                    throw;
-                }
+                if (method != null)
+                    method.DynamicInvoke(null);
             }
         }
 
@@ -273,7 +265,7 @@ namespace WPFMediaKit.Threading
                  * The real magic is here */
                 DispatchMessage(ref msg);
             }
-            
+
             OleUninitialize();
             CoUninitialize();
 

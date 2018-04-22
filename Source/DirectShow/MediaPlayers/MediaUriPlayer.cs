@@ -262,6 +262,7 @@ namespace WPFMediaKit.DirectShow.MediaPlayers
         /// <summary>
         /// Opens the media by initializing the DirectShow graph
         /// </summary>
+        [HandleProcessCorruptedStateExceptions]
         protected virtual void OpenSource()
         {
             /* Make sure we clean up any remaining mess */
@@ -429,17 +430,23 @@ namespace WPFMediaKit.DirectShow.MediaPlayers
                 /* This exection will happen usually if the media does
                  * not exist or could not open due to not having the
                  * proper filters installed */
-
-                // Fallback try auto graph:
-                var result = oldOpenSource();
-                if (!result)
+                try
                 {
-                    FreeResources();
+                    // Fallback try auto graph:
+                    var result = oldOpenSource();
+                    if (!result)
+                    {
+                        FreeResources();
 
-                    HasVideo = false;
+                        HasVideo = false;
 
-                    /* Fire our failed event */
-                    InvokeMediaFailed(new MediaFailedEventArgs(ex.Message, ex));
+                        /* Fire our failed event */
+                        InvokeMediaFailed(new MediaFailedEventArgs(ex.Message, ex));
+
+                        return;
+                    }
+                }
+                catch (Exception e){
 
                     return;
                 }
@@ -448,6 +455,7 @@ namespace WPFMediaKit.DirectShow.MediaPlayers
             InvokeMediaOpened();
         }
 
+        [HandleProcessCorruptedStateExceptions]
         private bool oldOpenSource()
         {
             /* Make sure we clean up any remaining mess */
