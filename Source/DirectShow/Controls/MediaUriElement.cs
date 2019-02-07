@@ -12,7 +12,7 @@ namespace WPFMediaKit.DirectShow.Controls
     /// inherits from the MediaSeekingElement, so where available, seeking is
     /// also supported.
     /// </summary>
-    public class MediaUriElement : MediaSeekingElement,IDisposable
+    public class MediaUriElement : MediaSeekingElement, IDisposable
     {
         /// <summary>
         /// The current MediaUriPlayer
@@ -121,6 +121,23 @@ namespace WPFMediaKit.DirectShow.Controls
 
         #region Source
 
+
+
+        public Uri AudioSource
+        {
+            get { return (Uri)GetValue(AudioSourceProperty); }
+            set { SetValue(AudioSourceProperty, value); }
+        }
+
+        // Using a DependencyProperty as the backing store for AudioSource.  This enables animation, styling, binding, etc...
+        public static readonly DependencyProperty AudioSourceProperty =
+            DependencyProperty.Register("AudioSource", typeof(Uri), typeof(MediaUriElement), new PropertyMetadata(null, new PropertyChangedCallback(OnAudioSourceChanged)));
+
+        private static void OnAudioSourceChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
+        {
+            ((MediaUriElement)d).OnSourceChanged(e);
+        }
+
         public static readonly DependencyProperty SourceProperty =
             DependencyProperty.Register("Source", typeof(Uri), typeof(MediaUriElement),
                 new FrameworkPropertyMetadata(null,
@@ -150,6 +167,7 @@ namespace WPFMediaKit.DirectShow.Controls
         private void PlayerSetSource()
         {
             var source = Source;
+            var audioSource = AudioSource;
             var rendererType = VideoRenderer;
             Stop();
 
@@ -158,22 +176,22 @@ namespace WPFMediaKit.DirectShow.Controls
                /* Set the renderer type */
                MediaUriPlayer.VideoRenderer = rendererType;
                bool invokePositionChanged = MediaUriPlayer.Source != null;
-                   /* Set the source type */
-                   MediaUriPlayer.Source = source;
+               /* Set the source type */
 
-                   Dispatcher.BeginInvoke((Action)delegate
+               MediaUriPlayer.AudioSource = audioSource;
+               MediaUriPlayer.Source = source;
+               Dispatcher.BeginInvoke((Action)delegate
+               {
+                   if (invokePositionChanged)
                    {
-
-                       if (invokePositionChanged)
-                       {
-                           SetMediaPositionInternal(0);
-                           InvokeMediaPlayerPositionChanged(new MediaPositionChangedEventArgs(MediaPosition, false));
-                       }
-                       if (IsLoaded)
-                           ExecuteMediaState(LoadedBehavior);
-                       //else
-                       //    ExecuteMediaState(UnloadedBehavior);
-                   });
+                       SetMediaPositionInternal(0);
+                       InvokeMediaPlayerPositionChanged(new MediaPositionChangedEventArgs(MediaPosition, false));
+                   }
+                   if (IsLoaded)
+                       ExecuteMediaState(LoadedBehavior);
+                   //else
+                   //    ExecuteMediaState(UnloadedBehavior);
+               });
            });
         }
         #endregion

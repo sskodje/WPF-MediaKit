@@ -18,7 +18,9 @@ namespace Test_Application
     /// </summary>
     public partial class UriInputWindow : Window
     {
-        public string InputText { get; set; }
+        public string VideoInputText { get; set; }
+
+        public string AudioInputText { get; set; }
 
         public UriInputWindow()
         {
@@ -34,6 +36,13 @@ namespace Test_Application
         private void bnCancel_Click(object sender, RoutedEventArgs e)
         {
             DialogResult = false;
+        }
+
+
+        private void bnAddAudioTrack_Click(object sender, RoutedEventArgs e)
+        {
+            this.AudioTrackPanel.Visibility = Visibility.Visible;
+            ((Button)sender).Visibility = Visibility.Collapsed;
         }
     }
 }

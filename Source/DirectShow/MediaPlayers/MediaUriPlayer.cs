@@ -77,6 +77,11 @@ namespace WPFMediaKit.DirectShow.MediaPlayers
         private Uri m_sourceUri;
 
         /// <summary>
+        /// The media Uri of an optional separate audio track
+        /// </summary>
+        private Uri m_audioSourceUri;
+
+        /// <summary>
         /// Gets or sets the Uri source of the media
         /// </summary>
         public Uri Source
@@ -107,6 +112,39 @@ namespace WPFMediaKit.DirectShow.MediaPlayers
                 if (m_sourceUri.IsFile)
                     return m_sourceUri.LocalPath;
                 return m_sourceUri.ToString();
+            }
+        }
+
+
+        /// <summary>
+        /// Gets or sets the Audio Uri source of the media
+        /// </summary>
+        public Uri AudioSource
+        {
+            get
+            {
+                VerifyAccess();
+                return m_audioSourceUri;
+            }
+            set
+            {
+                VerifyAccess();
+                m_audioSourceUri = value;
+            }
+        }
+
+        /// <summary>
+        /// Return Source as a string path or uri.
+        /// </summary>
+        private string AudioFileSource
+        {
+            get
+            {
+                if (m_audioSourceUri == null)
+                    return null;
+                if (m_audioSourceUri.IsFile)
+                    return m_audioSourceUri.LocalPath;
+                return m_audioSourceUri.ToString();
             }
         }
 
@@ -272,7 +310,7 @@ namespace WPFMediaKit.DirectShow.MediaPlayers
 
             if (string.IsNullOrEmpty(fileSource))
                 return;
-
+            bool useSeparateAudioTrack = AudioSource != null;
             try
             {
                 /* Creates the GraphBuilder COM object */
@@ -288,20 +326,6 @@ namespace WPFMediaKit.DirectShow.MediaPlayers
 
                 IBaseFilter sourceFilter;
                 int hr;
-
-
-                // Set LAV Splitter
-                /* LAVSplitterSource reader = new LAVSplitterSource();
-                 sourceFilter = reader as IBaseFilter;
-                 var objectWithSite = reader as IObjectWithSite;
-                 if (objectWithSite != null)
-                 {
-                     objectWithSite.SetSite(this);
-                 }
-
-
-                 hr = m_graph.AddFilter(sourceFilter, SplitterSource);
-                 DsError.ThrowExceptionForHR(hr);*/
 
                 sourceFilter = DirectShowUtil.AddFilterToGraph(m_graph, SplitterSource, Guid.Empty);
                 if (sourceFilter == null)
@@ -346,28 +370,19 @@ namespace WPFMediaKit.DirectShow.MediaPlayers
 
                 DirectShowUtil.AddFilterToGraph(m_graph, VideoDecoder, Guid.Empty);
 
-                try
+                int streamCount = 1;
+                if (useSeparateAudioTrack)
                 {
-                    // use preffered audio filter
-                    InsertAudioFilter(sourceFilter, AudioDecoder);
+                    AddSeparateAudioTrackToGraph(filterGraph);
                 }
-                catch (Exception ex)
+                else
                 {
-                    // codecs misconfigured
-                    log.Error(ex, "Cannot add audio decoder: {0}", AudioDecoder);
-                }
-
-                // use prefered audio renderer
-                try
-                {
-                    InsertAudioRenderer(AudioRenderer);
-                }
-                catch (Exception ex)
-                {
-                    log.Error(ex, "Cannot add audio render: {0}", AudioRenderer);
+                    streamCount = 2;
+                    AddInternalAudioTrackToGraph(sourceFilter);
                 }
 
-                IBaseFilter renderer = CreateVideoRenderer(VideoRenderer, m_graph, 2);
+
+                IBaseFilter renderer = CreateVideoRenderer(VideoRenderer, m_graph, streamCount);
 
                 /* We will want to enum all the pins on the source filter */
                 IEnumPins pinEnum;
@@ -452,8 +467,10 @@ namespace WPFMediaKit.DirectShow.MediaPlayers
                 }
             }
 
+            DumpGraphInfo("log.txt");
             InvokeMediaOpened();
         }
+
 
         [HandleProcessCorruptedStateExceptions]
         private bool oldOpenSource()
@@ -580,6 +597,91 @@ namespace WPFMediaKit.DirectShow.MediaPlayers
             InvokeMediaOpened();
 
             return true;
+        }
+
+        private void AddInternalAudioTrackToGraph(IBaseFilter sourceFilter)
+        {
+            try
+            {
+                // use preffered audio filter
+                InsertAudioFilter(sourceFilter, AudioDecoder);
+            }
+            catch (Exception ex)
+            {
+                // codecs misconfigured
+                log.Error(ex, "Cannot add audio decoder: {0}", AudioDecoder);
+            }
+
+            // use prefered audio renderer
+            try
+            {
+                InsertAudioRenderer(AudioRenderer);
+            }
+            catch (Exception ex)
+            {
+                log.Error(ex, "Cannot add audio render: {0}", AudioRenderer);
+            }
+        }
+        private void AddSeparateAudioTrackToGraph(IFilterGraph2 graph)
+        {
+            IBaseFilter sourceFilter;
+            int hr;
+
+            sourceFilter = DirectShowUtil.AddFilterToGraph(graph, SplitterSource, Guid.Empty);
+            if (sourceFilter == null)
+                throw new WPFMediaKitException("Could not add SplitterSource to graph.");
+
+            IFileSourceFilter interfaceFile = (IFileSourceFilter)sourceFilter;
+            hr = interfaceFile.Load(AudioFileSource, null);
+            DsError.ThrowExceptionForHR(hr);
+
+            try
+            {
+                // use preffered audio filter
+                InsertAudioFilter(sourceFilter, AudioDecoder);
+            }
+            catch (Exception ex)
+            {
+                // codecs misconfigured
+                log.Error(ex, "Cannot add audio decoder: {0}", AudioDecoder);
+            }
+
+            // use prefered audio renderer
+            try
+            {
+                InsertAudioRenderer(AudioRenderer);
+            }
+            catch (Exception ex)
+            {
+                log.Error(ex, "Cannot add audio render: {0}", AudioRenderer);
+            }
+            /* We will want to enum all the pins on the source filter */
+            IEnumPins pinEnum;
+
+            hr = sourceFilter.EnumPins(out pinEnum);
+            DsError.ThrowExceptionForHR(hr);
+
+            IntPtr fetched = IntPtr.Zero;
+            IPin[] pins = { null };
+
+            /* Counter for how many pins successfully rendered */
+            int pinsRendered = 0;
+
+            /* Loop over each pin of the source filter */
+            while (pinEnum.Next(pins.Length, pins, fetched) == 0)
+            {
+                if (graph.RenderEx(pins[0],
+                                         AMRenderExFlags.RenderToExistingRenderers,
+                                         IntPtr.Zero) >= 0)
+                    pinsRendered++;
+
+
+                Marshal.ReleaseComObject(pins[0]);
+            }
+
+
+            Marshal.ReleaseComObject(pinEnum);
+            Marshal.ReleaseComObject(sourceFilter);
         }
 
         /// <summary>

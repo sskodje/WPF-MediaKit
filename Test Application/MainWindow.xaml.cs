@@ -88,11 +88,15 @@ namespace Test_Application
             bool? success = window.ShowDialog();
             if (success.GetValueOrDefault() == true)
             {
-
-                if (Uri.IsWellFormedUriString(window.InputText, UriKind.Absolute))
+                if (Uri.IsWellFormedUriString(window.AudioInputText, UriKind.Absolute))
                 {
-                    Uri uri = new Uri(window.InputText);
-                    mediaUriElement.Source = uri;
+                    Uri audioUri = new Uri(window.AudioInputText);
+                    mediaUriElement.AudioSource = audioUri;
+                }
+                if (Uri.IsWellFormedUriString(window.VideoInputText, UriKind.Absolute))
+                {
+                    Uri videoUri = new Uri(window.VideoInputText);
+                    mediaUriElement.Source = videoUri;
                     tbStatus.Text = "Opening...";
                 }
             }
