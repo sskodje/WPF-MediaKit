@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Diagnostics;
 using System.Windows;
 using System.Windows.Threading;
 using WPFMediaKit.DirectShow.MediaPlayers;
@@ -11,7 +12,7 @@ namespace WPFMediaKit.DirectShow.Controls
     /// inherits from the MediaSeekingElement, so where available, seeking is
     /// also supported.
     /// </summary>
-    public class MediaUriElement : MediaSeekingElement
+    public class MediaUriElement : MediaSeekingElement,IDisposable
     {
         /// <summary>
         /// The current MediaUriPlayer
@@ -37,6 +38,25 @@ namespace WPFMediaKit.DirectShow.Controls
             set { SetValue(VideoRendererProperty, value); }
         }
 
+
+        public MediaUriElement()
+        {
+
+        }
+
+        public void Dispose()
+        {
+            Dispose(true);
+            GC.SuppressFinalize(this);
+        }
+
+        public void Dispose(bool IsDisposing)
+        {
+            if (IsDisposing)
+            {
+                MediaPlayerBase.Close();
+            }
+        }
         private static void OnVideoRendererChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
         {
             ((MediaUriElement)d).OnVideoRendererChanged(e);
