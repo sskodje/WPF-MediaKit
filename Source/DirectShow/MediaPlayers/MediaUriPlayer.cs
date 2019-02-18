@@ -467,7 +467,6 @@ namespace WPFMediaKit.DirectShow.MediaPlayers
                 }
             }
 
-            DumpGraphInfo("log.txt");
             InvokeMediaOpened();
         }
 
